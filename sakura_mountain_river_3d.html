@@ -1,0 +1,2276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Kaze-no-Tani — Grand 3D Mountain River & Sakura Landscape Engine</title>
+<style>
+  :root {
+    --bg-glass: rgba(8, 16, 14, 0.74);
+    --bg-glass-hover: rgba(16, 30, 25, 0.88);
+    --border-glass: rgba(255, 195, 210, 0.26);
+    --accent-sakura: #ff9eb5;
+    --accent-rose: #ff5c8a;
+    --accent-emerald: #4ade80;
+    --accent-gold: #fbbf24;
+    --text-main: #f8fafc;
+    --text-dim: #cbd5e1;
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #07120e;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    color: var(--text-main);
+  }
+
+  #engine-viewport {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    cursor: grab;
+  }
+
+  #engine-viewport:active {
+    cursor: grabbing;
+  }
+
+  canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  #gl-canvas {
+    z-index: 1;
+  }
+
+  #fx-canvas {
+    z-index: 2;
+    pointer-events: none;
+  }
+
+  #vignette-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 3;
+    pointer-events: none;
+    background: radial-gradient(circle at 50% 50%, rgba(0,0,0,0) 65%, rgba(3, 9, 7, 0.42) 100%);
+    transition: opacity 0.5s ease;
+  }
+
+  .hud-layer {
+    position: fixed;
+    z-index: 10;
+    transition: opacity 0.45s cubic-bezier(0.16, 1, 0.3, 1), transform 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  body.cinema-mode .hud-hideable {
+    opacity: 0 !important;
+    pointer-events: none !important;
+    transform: translateY(10px);
+  }
+
+  #top-bar {
+    top: 18px;
+    left: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-width: 450px;
+  }
+
+  .brand-card {
+    background: var(--bg-glass);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid var(--border-glass);
+    border-radius: 16px;
+    padding: 13px 17px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  }
+
+  .brand-title-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .sakura-badge {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: radial-gradient(circle, #ffdde6 0%, #ff6b9d 70%);
+    box-shadow: 0 0 12px #ff6b9d;
+    animation: pulseGlow 2.6s infinite ease-in-out;
+  }
+
+  @keyframes pulseGlow {
+    0%, 100% { transform: scale(1); opacity: 0.9; }
+    50% { transform: scale(1.25); opacity: 1; }
+  }
+
+  .brand-title {
+    font-size: 14.5px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    background: linear-gradient(90deg, #ffffff 0%, #ffc2d4 52%, #86efac 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .brand-subtitle {
+    font-size: 11.5px;
+    color: var(--text-dim);
+    margin-top: 4px;
+    line-height: 1.38;
+  }
+
+  .telemetry-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 9px;
+  }
+
+  .stat-pill {
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    padding: 3.5px 9px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #e2e8f0;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .stat-pill span.val {
+    color: var(--accent-sakura);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .stat-pill span.val-green {
+    color: var(--accent-emerald);
+    font-variant-numeric: tabular-nums;
+  }
+
+  #top-right-bar {
+    top: 18px;
+    right: 20px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .action-btn {
+    background: var(--bg-glass);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid var(--border-glass);
+    color: var(--text-main);
+    padding: 8.5px 13px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s ease;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+  }
+
+  .action-btn:hover {
+    background: var(--bg-glass-hover);
+    border-color: rgba(255, 180, 205, 0.55);
+    transform: translateY(-1px);
+  }
+
+  .action-btn.active {
+    background: linear-gradient(135deg, rgba(255, 110, 155, 0.32), rgba(45, 160, 100, 0.28));
+    border-color: var(--accent-sakura);
+    box-shadow: 0 0 18px rgba(255, 130, 170, 0.35);
+  }
+
+  #studio-panel {
+    top: 68px;
+    right: 20px;
+    width: 295px;
+    max-height: calc(100vh - 165px);
+    overflow-y: auto;
+    background: var(--bg-glass);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border: 1px solid var(--border-glass);
+    border-radius: 18px;
+    padding: 15px 17px;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+  }
+
+  #studio-panel.collapsed {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(20px);
+  }
+
+  #studio-panel::-webkit-scrollbar {
+    width: 5px;
+  }
+  #studio-panel::-webkit-scrollbar-thumb {
+    background: rgba(255, 190, 210, 0.28);
+    border-radius: 99px;
+  }
+
+  .panel-section-title {
+    font-size: 10.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    color: var(--accent-sakura);
+    margin-bottom: 9px;
+    margin-top: 4px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .control-group {
+    margin-bottom: 11px;
+  }
+
+  .control-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11.5px;
+    color: #e2e8f0;
+    margin-bottom: 4px;
+  }
+
+  .control-label span.c-val {
+    color: var(--accent-sakura);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 5px;
+    background: rgba(255, 255, 255, 0.14);
+    border-radius: 99px;
+    outline: none;
+  }
+
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #ffc2d4;
+    border: 2px solid #ff5c8a;
+    cursor: pointer;
+    box-shadow: 0 0 8px rgba(255, 92, 138, 0.7);
+    transition: transform 0.15s ease;
+  }
+
+  input[type="range"]::-webkit-slider-thumb:hover {
+    transform: scale(1.18);
+  }
+
+  #bottom-dock {
+    bottom: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 7px;
+    width: max-content;
+    max-width: 96vw;
+  }
+
+  body.cinema-mode #bottom-dock {
+    transform: translate(-50%, 14px);
+  }
+
+  .dock-bar {
+    background: var(--bg-glass);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border: 1px solid var(--border-glass);
+    border-radius: 16px;
+    padding: 6.5px 10px;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px;
+    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.55);
+  }
+
+  .dock-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    padding: 0 7px;
+    display: flex;
+    align-items: center;
+  }
+
+  .pill-btn {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #f1f5f9;
+    padding: 6px 11.5px;
+    border-radius: 10px;
+    font-size: 11.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .pill-btn:hover {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 190, 210, 0.45);
+  }
+
+  .pill-btn.active {
+    background: linear-gradient(135deg, rgba(255, 120, 165, 0.38), rgba(52, 211, 153, 0.25));
+    border-color: var(--accent-sakura);
+    color: #ffffff;
+    box-shadow: 0 0 14px rgba(255, 140, 175, 0.32);
+  }
+
+  .controls-hint {
+    font-size: 11px;
+    color: rgba(241, 245, 249, 0.78);
+    background: rgba(8, 15, 12, 0.62);
+    padding: 4px 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(8px);
+  }
+
+  .kbd {
+    display: inline-block;
+    padding: 1px 5px;
+    font-size: 10px;
+    font-weight: 700;
+    color: #ffc2d4;
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 4px;
+    margin: 0 2px;
+  }
+
+  @media (max-width: 768px) {
+    #studio-panel {
+      width: 260px;
+      top: 64px;
+      right: 12px;
+    }
+    #top-bar {
+      left: 12px;
+      top: 12px;
+      max-width: 62vw;
+    }
+    .controls-hint {
+      display: none;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div id="engine-viewport">
+  <canvas id="gl-canvas"></canvas>
+  <canvas id="fx-canvas"></canvas>
+</div>
+<div id="vignette-overlay"></div>
+
+<!-- Top Left Brand & Live Engine Telemetry -->
+<div id="top-bar" class="hud-layer hud-hideable">
+  <div class="brand-card">
+    <div class="brand-title-row">
+      <div class="sakura-badge"></div>
+      <div class="brand-title">Kaze-no-Tani // 3D Sakura Engine</div>
+    </div>
+    <div class="brand-subtitle">
+      Grand Cascading Mountain River, Multi-Shade Emerald Canopy &amp; Falling Cherry Blossoms
+    </div>
+    <div class="telemetry-row">
+      <div class="stat-pill">FPS <span class="val-green" id="stat-fps">60</span></div>
+      <div class="stat-pill">PETALS <span class="val" id="stat-petals">2,800</span></div>
+      <div class="stat-pill">CAM <span class="val" id="stat-cam">Sanctuary Vista</span></div>
+      <div class="stat-pill">MOOD <span class="val" id="stat-mood">Golden Romance</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- Top Right Quick Action Bar -->
+<div id="top-right-bar" class="hud-layer">
+  <button class="action-btn hud-hideable" id="btn-gust" title="Trigger a romantic swirl of cherry blossoms (Spacebar)">
+    <span>🌸</span> Sakura Breeze
+  </button>
+  <button class="action-btn hud-hideable" id="btn-audio" title="Toggle serene river & wind chime ambient synthesizer (M)">
+    <span id="audio-icon">🔇</span> <span id="audio-label">Serene Audio</span>
+  </button>
+  <button class="action-btn hud-hideable active" id="btn-studio" title="Toggle Engine Parameters">
+    <span>⚙️</span> Engine Studio
+  </button>
+  <button class="action-btn" id="btn-cinema" title="Toggle pure fullscreen view (H)">
+    <span>🎬</span> HUD
+  </button>
+</div>
+
+<!-- Right Side Engine Studio Parameter Drawer -->
+<div id="studio-panel" class="hud-layer hud-hideable">
+  <div class="panel-section-title">
+    <span>Sakura &amp; Wind Physics</span>
+    <span>🌸</span>
+  </div>
+
+  <div class="control-group">
+    <div class="control-label">
+      <span>Falling Cherry Petals</span>
+      <span class="c-val" id="lbl-petals">2800</span>
+    </div>
+    <input type="range" id="sld-petals" min="400" max="4500" step="100" value="2800" />
+  </div>
+
+  <div class="control-group">
+    <div class="control-label">
+      <span>Romantic Breeze &amp; Vortex</span>
+      <span class="c-val" id="lbl-wind">1.15x</span>
+    </div>
+    <input type="range" id="sld-wind" min="0.2" max="2.5" step="0.05" value="1.15" />
+  </div>
+
+  <div class="control-group">
+    <div class="control-label">
+      <span>Petal Size &amp; Bokeh Bloom</span>
+      <span class="c-val" id="lbl-petal-size">1.10x</span>
+    </div>
+    <input type="range" id="sld-petal-size" min="0.6" max="1.8" step="0.05" value="1.10" />
+  </div>
+
+  <div class="panel-section-title" style="margin-top: 12px;">
+    <span>Waterfall, Greenery &amp; Light</span>
+    <span>🏞️</span>
+  </div>
+
+  <div class="control-group">
+    <div class="control-label">
+      <span>Falling River &amp; Cascade Speed</span>
+      <span class="c-val" id="lbl-water">1.15x</span>
+    </div>
+    <input type="range" id="sld-water" min="0.3" max="2.2" step="0.05" value="1.15" />
+  </div>
+
+  <div class="control-group">
+    <div class="control-label">
+      <span>Emerald &amp; Jade Greenery Richness</span>
+      <span class="c-val" id="lbl-greenery">1.25x</span>
+    </div>
+    <input type="range" id="sld-greenery" min="0.5" max="1.6" step="0.05" value="1.25" />
+  </div>
+
+  <div class="control-group">
+    <div class="control-label">
+      <span>Canyon Mist &amp; Sun God-Rays</span>
+      <span class="c-val" id="lbl-mist">0.80x</span>
+    </div>
+    <input type="range" id="sld-mist" min="0.1" max="1.6" step="0.05" value="0.80" />
+  </div>
+
+  <div class="control-group">
+    <div class="control-label">
+      <span>Sun Elevation Angle</span>
+      <span class="c-val" id="lbl-sun">0.28</span>
+    </div>
+    <input type="range" id="sld-sun" min="0.05" max="0.85" step="0.01" value="0.28" />
+  </div>
+
+  <div class="control-group" style="margin-bottom: 4px;">
+    <div class="control-label">
+      <span>Shader Resolution Scale</span>
+      <span class="c-val" id="lbl-res">0.85x</span>
+    </div>
+    <input type="range" id="sld-res" min="0.45" max="1.25" step="0.05" value="0.85" />
+  </div>
+</div>
+
+<!-- Bottom Dock: Camera Presets & Atmosphere Moods -->
+<div id="bottom-dock" class="hud-layer hud-hideable">
+  <div class="controls-hint">
+    <span class="kbd">Drag</span> 360° Orbit &nbsp;•&nbsp;
+    <span class="kbd">WASD</span> / <span class="kbd">Arrows</span> Fly &nbsp;•&nbsp;
+    <span class="kbd">Scroll</span> Zoom &nbsp;•&nbsp;
+    <span class="kbd">Space</span> Sakura Gust &nbsp;•&nbsp;
+    <span class="kbd">H</span> Toggle UI
+  </div>
+
+  <div class="dock-bar">
+    <div class="dock-label">Camera</div>
+    <button class="pill-btn cam-btn active" data-cam="0">🏞️ Sanctuary Vista</button>
+    <button class="pill-btn cam-btn" data-cam="1">🌊 Grand Waterfall</button>
+    <button class="pill-btn cam-btn" data-cam="2">⛩️ Sakura Bridge</button>
+    <button class="pill-btn cam-btn" data-cam="3">🌿 Emerald Cascades</button>
+    <button class="pill-btn cam-btn" data-cam="4">🎥 Auto-Cruise</button>
+
+    <div class="dock-label" style="margin-left: 6px;">Atmosphere</div>
+    <button class="pill-btn mood-btn active" data-mood="0">🌅 Golden Romance</button>
+    <button class="pill-btn mood-btn" data-mood="1">🌆 Sakura Twilight</button>
+    <button class="pill-btn mood-btn" data-mood="2">🌤️ Serene Emerald Dawn</button>
+    <button class="pill-btn mood-btn" data-mood="3">🌙 Moonlit Sanctuary</button>
+  </div>
+</div>
+
+<script>
+// ============================================================================
+// KAZE-NO-TANI: HYBRID 3D RAYMARCHING + BOTANICAL PARTICLE & ARCHITECTURE ENGINE
+// Self-contained WebGL + 3D Projection Engine. Zero external dependencies.
+// ============================================================================
+
+(() => {
+  const glCanvas = document.getElementById('gl-canvas');
+  const fxCanvas = document.getElementById('fx-canvas');
+  const fxCtx = fxCanvas.getContext('2d');
+
+  // Engine Configuration & State
+  const state = {
+    time: 0,
+    dt: 0.016,
+    width: window.innerWidth,
+    height: window.innerHeight,
+    resScale: 0.85,
+    userLockedRes: false,
+    petalCount: 2800,
+    windStrength: 1.15,
+    petalSizeScale: 1.10,
+    waterSpeed: 1.15,
+    greeneryLushness: 1.25,
+    mistDensity: 0.80,
+    sunElevation: 0.28,
+    sunAzimuth: -0.16,
+    gustImpulse: 0.0,
+    camMode: 0,
+    moodIndex: 0,
+    skyZenith: [0.10, 0.22, 0.45],
+    skyHorizon: [0.98, 0.58, 0.48],
+    sunColor: [1.00, 0.82, 0.55],
+    fogColor: [0.86, 0.62, 0.60],
+    ambientTint: [0.36, 0.58, 0.44],
+    lanternGlow: 0.80,
+    starIntensity: 0.12,
+    camPos: [-1.5, 7.8, -16.5],
+    camTarget: [0.5, 9.5, 36.0],
+    targetCamPos: [-1.5, 7.8, -16.5],
+    targetCamLook: [0.5, 9.5, 36.0],
+    orbitYaw: 0.0,
+    orbitPitch: 0.06,
+    orbitDist: 42.0,
+    isDragging: false,
+    lastMouseX: 0,
+    lastMouseY: 0,
+    mouseNormX: 0.5,
+    mouseNormY: 0.5,
+    keys: {}
+  };
+
+  // Framed 3D Camera Presets showcasing the open sky, towering peaks, waterfall & bridge
+  const CAMERA_PRESETS = [
+    {
+      name: 'Sanctuary Vista',
+      pos: [-1.5, 7.8, -16.5],
+      look: [0.5, 9.5, 36.0],
+      auto: false
+    },
+    {
+      name: 'Grand Waterfall',
+      pos: [1.2, 6.4, 9.5],
+      look: [0.8, 12.5, 42.0],
+      auto: false
+    },
+    {
+      name: 'Sakura Bridge',
+      pos: [-4.5, 5.2, -6.5],
+      look: [1.5, 7.8, 30.0],
+      auto: false
+    },
+    {
+      name: 'Emerald Cascades',
+      pos: [8.8, 13.5, -10.0],
+      look: [-0.8, 6.8, 28.0],
+      auto: false
+    },
+    {
+      name: 'Auto-Cruise',
+      pos: [0.0, 8.0, -15.0],
+      look: [0.0, 9.0, 34.0],
+      auto: true
+    }
+  ];
+
+  // Romantic Atmosphere Presets
+  const MOOD_PRESETS = [
+    {
+      name: 'Golden Romance',
+      skyZenith: [0.10, 0.22, 0.45],
+      skyHorizon: [0.98, 0.58, 0.48],
+      sunColor: [1.00, 0.82, 0.55],
+      fogColor: [0.86, 0.62, 0.60],
+      ambientTint: [0.36, 0.58, 0.44],
+      sunElevation: 0.28,
+      sunAzimuth: -0.16,
+      lanternGlow: 0.85,
+      starIntensity: 0.12
+    },
+    {
+      name: 'Sakura Twilight',
+      skyZenith: [0.07, 0.06, 0.22],
+      skyHorizon: [0.84, 0.34, 0.56],
+      sunColor: [1.00, 0.54, 0.68],
+      fogColor: [0.56, 0.32, 0.50],
+      ambientTint: [0.28, 0.36, 0.48],
+      sunElevation: 0.16,
+      sunAzimuth: -0.22,
+      lanternGlow: 1.60,
+      starIntensity: 0.75
+    },
+    {
+      name: 'Serene Emerald Dawn',
+      skyZenith: [0.12, 0.38, 0.56],
+      skyHorizon: [0.86, 0.84, 0.72],
+      sunColor: [1.00, 0.95, 0.78],
+      fogColor: [0.70, 0.84, 0.76],
+      ambientTint: [0.42, 0.72, 0.52],
+      sunElevation: 0.38,
+      sunAzimuth: 0.16,
+      lanternGlow: 0.35,
+      starIntensity: 0.0
+    },
+    {
+      name: 'Moonlit Sanctuary',
+      skyZenith: [0.02, 0.04, 0.13],
+      skyHorizon: [0.12, 0.22, 0.36],
+      sunColor: [0.78, 0.88, 1.00],
+      fogColor: [0.14, 0.22, 0.34],
+      ambientTint: [0.16, 0.30, 0.36],
+      sunElevation: 0.42,
+      sunAzimuth: -0.08,
+      lanternGlow: 1.90,
+      starIntensity: 1.0
+    }
+  ];
+
+  // ==========================================================================
+  // SHARED MATHEMATICAL WORLD MODEL (Synchronized between GLSL & JS 3D Engine)
+  // ==========================================================================
+  function smoothstep(edge0, edge1, x) {
+    const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
+    return t * t * (3 - 2 * t);
+  }
+
+  function mix(a, b, t) {
+    return a + (b - a) * t;
+  }
+
+  function getRiverCenterX(z) {
+    return Math.sin(z * 0.055) * 6.0 + Math.cos(z * 0.024) * 3.0;
+  }
+
+  function getRiverWidth(z) {
+    const poolFactor = Math.exp(-Math.pow((z - 30.0) * 0.11, 2.0)) * 5.2;
+    return 5.6 + Math.sin(z * 0.08) * 0.7 + poolFactor;
+  }
+
+  function getWaterElevation(z) {
+    let h = (z + 25.0) * 0.032;
+    // Foreground & Midground river cascades (falling river steps)
+    h += 1.55 * smoothstep(-4.8, -1.5, z);
+    h += 2.10 * smoothstep(11.0, 14.5, z);
+    // Grand 3-Tier Waterfall Escarpment at z = 31.5..43.5 (18.5m dramatic cataract)
+    const tier1 = 6.2 * smoothstep(31.5, 34.5, z);
+    const tier2 = 6.5 * smoothstep(35.2, 38.5, z);
+    const tier3 = 5.8 * smoothstep(39.2, 42.8, z);
+    return h + tier1 + tier2 + tier3;
+  }
+
+  function hash21(px, pz) {
+    let x = Math.sin(px * 127.1 + pz * 311.7) * 43758.5453123;
+    return x - Math.floor(x);
+  }
+
+  function noise2D(px, pz) {
+    const ix = Math.floor(px);
+    const iz = Math.floor(pz);
+    const fx = px - ix;
+    const fz = pz - iz;
+    const ux = fx * fx * (3.0 - 2.0 * fx);
+    const uz = fz * fz * (3.0 - 2.0 * fz);
+    const a = hash21(ix, iz);
+    const b = hash21(ix + 1, iz);
+    const c = hash21(ix, iz + 1);
+    const d = hash21(ix + 1, iz + 1);
+    return mix(mix(a, b, ux), mix(c, d, ux), uz);
+  }
+
+  function fbm2D(px, pz) {
+    let v = 0.5 * noise2D(px, pz);
+    v += 0.25 * noise2D(px * 2.03 + 13.7, pz * 2.03 + 29.1);
+    return v * 1.333;
+  }
+
+  // Wide scenic amphitheater valley so sky dome, sun, and flanking peaks frame the waterfall
+  function getTerrainElevation(x, z) {
+    const rCenter = getRiverCenterX(z);
+    const rWidth = getRiverWidth(z);
+    const distFromRiver = Math.abs(x - rCenter);
+    const baseWaterY = getWaterElevation(z);
+
+    const channelT = smoothstep(rWidth * 0.65, rWidth * 1.45, distFromRiver);
+    const bedDepth = -1.6 * (1.0 - channelT);
+
+    const bankDist = Math.max(0.0, distFromRiver - rWidth * 0.85);
+    const f1 = fbm2D(x * 0.042, z * 0.042);
+    const f2 = noise2D(x * 0.13 + 17.3, z * 0.13 - 9.4);
+
+    // Gentle terraced emerald valley floor that opens up to grand flanking mountain peaks
+    const valleyRise = Math.pow(bankDist, 1.15) * (0.16 + 0.18 * f1);
+    const mountainPeaks = smoothstep(14.0, 62.0, bankDist) * (28.0 * f1 + 12.0 * f2);
+    // Distant alpine peaks behind the waterfall with a central saddle gap for the sun & sky!
+    const centerGap = 1.0 - 0.65 * Math.exp(-Math.pow((x - rCenter) * 0.055, 2.0));
+    const backRange = smoothstep(36.0, 95.0, z) * centerGap * (26.0 * fbm2D(x * 0.03 - 4.2, z * 0.03 - 1.1));
+
+    return baseWaterY + bedDepth + valleyRise + mountainPeaks + backRange;
+  }
+
+  // ==========================================================================
+  // PASS 1: WEBGL RAYMARCHING SHADER WITH SUB-PIXEL BISECTION REFINEMENT
+  // ==========================================================================
+  const glOpts = { antialias: false, preserveDrawingBuffer: true, powerPreference: 'high-performance' };
+  const gl = glCanvas.getContext('webgl2', glOpts) || glCanvas.getContext('webgl', glOpts);
+
+  const vsSource = `
+    attribute vec2 a_pos;
+    varying vec2 v_uv;
+    void main() {
+      v_uv = a_pos * 0.5 + 0.5;
+      gl_Position = vec4(a_pos, 0.0, 1.0);
+    }
+  `;
+
+  const fsSource = `
+    precision highp float;
+    varying vec2 v_uv;
+
+    uniform vec2 u_res;
+    uniform float u_time;
+    uniform vec3 u_camPos;
+    uniform vec3 u_camFwd;
+    uniform vec3 u_camRight;
+    uniform vec3 u_camUp;
+    uniform float u_waterSpeed;
+    uniform float u_greenery;
+    uniform float u_mist;
+    uniform vec3 u_sunDir;
+    uniform vec3 u_skyZenith;
+    uniform vec3 u_skyHorizon;
+    uniform vec3 u_sunColor;
+    uniform vec3 u_fogColor;
+    uniform vec3 u_ambientTint;
+    uniform float u_lanternGlow;
+    uniform float u_starIntensity;
+
+    float hash21(vec2 p) {
+      vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+      p3 += dot(p3, p3.yzx + 33.33);
+      return fract((p3.x + p3.y) * p3.z);
+    }
+
+    float noise(vec2 p) {
+      vec2 i = floor(p);
+      vec2 f = fract(p);
+      vec2 u = f * f * (3.0 - 2.0 * f);
+      return mix(
+        mix(hash21(i + vec2(0.0, 0.0)), hash21(i + vec2(1.0, 0.0)), u.x),
+        mix(hash21(i + vec2(0.0, 1.0)), hash21(i + vec2(1.0, 1.0)), u.x),
+        u.y
+      );
+    }
+
+    const mat2 m2 = mat2(0.80, -0.60, 0.60, 0.80);
+
+    float fbm2(vec2 p) {
+      float v = 0.5 * noise(p);
+      p = m2 * p * 2.03 + vec2(13.7, 29.1);
+      v += 0.25 * noise(p);
+      return v * 1.333;
+    }
+
+    float fbm4(vec2 p) {
+      float v = 0.0;
+      float a = 0.5;
+      for (int i = 0; i < 4; i++) {
+        v += a * noise(p);
+        p = m2 * p * 2.03 + vec2(13.7, 29.1);
+        a *= 0.5;
+      }
+      return v;
+    }
+
+    float getRiverCenterX(float z) {
+      return sin(z * 0.055) * 6.0 + cos(z * 0.024) * 3.0;
+    }
+
+    float getRiverWidth(float z) {
+      float dz = (z - 30.0) * 0.11;
+      float poolFactor = exp(-dz * dz) * 5.2;
+      return 5.6 + sin(z * 0.08) * 0.7 + poolFactor;
+    }
+
+    float getWaterElevation(float z) {
+      float h = (z + 25.0) * 0.032;
+      h += 1.55 * smoothstep(-4.8, -1.5, z);
+      h += 2.10 * smoothstep(11.0, 14.5, z);
+      float tier1 = 6.2 * smoothstep(31.5, 34.5, z);
+      float tier2 = 6.5 * smoothstep(35.2, 38.5, z);
+      float tier3 = 5.8 * smoothstep(39.2, 42.8, z);
+      return h + tier1 + tier2 + tier3;
+    }
+
+    float getGeoHeight(vec2 xz) {
+      float rCenter = getRiverCenterX(xz.y);
+      float rWidth = getRiverWidth(xz.y);
+      float distFromRiver = abs(xz.x - rCenter);
+      float baseWaterY = getWaterElevation(xz.y);
+
+      // On the Grand Waterfall cliff face (z = 31.5..43.0), sculpt 3 distinct water chutes
+      // separated by jutting wet basalt & mossy rock buttresses!
+      float isWaterfallCliff = smoothstep(31.0, 32.5, xz.y) * (1.0 - smoothstep(42.0, 44.0, xz.y));
+      float chuteWave = cos((xz.x - rCenter) * 0.85);
+      float cliffButtress = max(0.0, -chuteWave) * 2.6 * isWaterfallCliff;
+
+      float channelT = smoothstep(rWidth * 0.65, rWidth * 1.45, distFromRiver);
+      float bedDepth = -1.6 * (1.0 - channelT) + cliffButtress;
+
+      float bankDist = max(0.0, distFromRiver - rWidth * 0.85);
+      float f1 = fbm2(xz * 0.042);
+      float f2 = noise(xz * 0.13 + vec2(17.3, -9.4));
+
+      float valleyRise = pow(bankDist, 1.15) * (0.16 + 0.18 * f1);
+      float terrace = sin(valleyRise * 0.9) * 0.35 * smoothstep(2.0, 18.0, bankDist);
+      float mountainPeaks = smoothstep(14.0, 62.0, bankDist) * (28.0 * f1 + 12.0 * f2);
+
+      float centerGap = 1.0 - 0.65 * exp(-pow((xz.x - rCenter) * 0.055, 2.0));
+      float backRange = smoothstep(36.0, 95.0, xz.y) * centerGap * (26.0 * fbm2(xz * 0.03 - vec2(4.2, 1.1)));
+
+      // Forest & Sakura Canopy Domes on the valley slopes
+      float treeZone = smoothstep(2.5, 7.5, distFromRiver) * (1.0 - smoothstep(38.0, 62.0, distFromRiver));
+      float canopy = max(0.0, sin(xz.x * 0.72 + f1 * 4.2) * cos(xz.y * 0.72 + f2 * 4.2)) * 1.55 * treeZone;
+
+      return baseWaterY + bedDepth + valleyRise + terrace + mountainPeaks + backRange + canopy;
+    }
+
+    vec3 getTerrainNormal(vec2 xz, float t) {
+      float eps = max(0.06, 0.0018 * t);
+      float hC = getGeoHeight(xz);
+      float hX = getGeoHeight(xz + vec2(eps, 0.0));
+      float hZ = getGeoHeight(xz + vec2(0.0, eps));
+      return normalize(vec3(hC - hX, eps, hC - hZ));
+    }
+
+    vec3 renderSky(vec3 rd) {
+      float y = max(0.0, rd.y);
+      vec3 sky = mix(u_skyHorizon, u_skyZenith, pow(y, 0.55));
+
+      float horizonGlow = exp(-abs(rd.y) * 5.5);
+      sky += u_sunColor * horizonGlow * 0.36;
+
+      float sunDot = max(0.0, dot(rd, u_sunDir));
+      sky += u_sunColor * pow(sunDot, 6.0) * 0.42;
+      sky += vec3(1.0, 0.94, 0.86) * pow(sunDot, 48.0) * 0.80;
+      sky += vec3(1.0, 0.98, 0.95) * smoothstep(0.9980, 0.9996, sunDot) * 2.4;
+
+      if (rd.y > 0.01) {
+        vec2 cloudUV = rd.xz / (rd.y + 0.18) * 1.35 + vec2(u_time * 0.018, -u_time * 0.008);
+        float cNoise = fbm2(cloudUV * 1.6);
+        float cloudAlpha = smoothstep(0.42, 0.75, cNoise) * smoothstep(0.01, 0.22, rd.y);
+        vec3 cloudCol = mix(u_skyHorizon * 1.12, u_sunColor * 1.25, pow(sunDot, 2.0));
+        cloudCol = mix(cloudCol, vec3(1.0, 0.74, 0.84), 0.32);
+        sky = mix(sky, cloudCol, cloudAlpha * 0.65);
+      }
+
+      if (u_starIntensity > 0.01 && rd.y > 0.10) {
+        vec2 starGrid = floor(rd.xz / (rd.y + 0.1) * 95.0);
+        float sVal = hash21(starGrid);
+        if (sVal > 0.992) {
+          float twinkle = 0.55 + 0.45 * sin(u_time * 3.5 + sVal * 100.0);
+          sky += vec3(0.95, 0.96, 1.0) * twinkle * u_starIntensity * smoothstep(0.10, 0.40, rd.y) * 1.5;
+        }
+      }
+
+      return sky;
+    }
+
+    void main() {
+      vec2 uv = (v_uv - 0.5) * 2.0;
+      uv.x *= u_res.x / u_res.y;
+
+      float fovFactor = 0.82;
+      vec3 rd = normalize(u_camFwd + uv.x * fovFactor * u_camRight + uv.y * fovFactor * u_camUp);
+      vec3 ro = u_camPos;
+
+      vec3 col = renderSky(rd);
+
+      float t = 0.5;
+      float tPrev = 0.5;
+      float tMax = 135.0;
+      int hitType = 0;
+      vec3 hitPos = vec3(0.0);
+
+      for (int i = 0; i < 52; i++) {
+        vec3 p = ro + rd * t;
+        if (t > tMax || p.y > 95.0) break;
+
+        float hTerr = getGeoHeight(p.xz);
+        float hWat = getWaterElevation(p.xz.y);
+
+        float dTerr = p.y - hTerr;
+        float dWat = p.y - hWat;
+
+        if (dWat < 0.02 && hWat >= hTerr - 0.05) {
+          hitType = 2;
+          float tA = tPrev;
+          float tB = t;
+          for (int b = 0; b < 4; b++) {
+            float tM = 0.5 * (tA + tB);
+            vec3 pM = ro + rd * tM;
+            if (pM.y - getWaterElevation(pM.z) < 0.0) tB = tM;
+            else tA = tM;
+          }
+          t = 0.5 * (tA + tB);
+          hitPos = ro + rd * t;
+          break;
+        }
+        if (dTerr < 0.02) {
+          hitType = 1;
+          float tA = tPrev;
+          float tB = t;
+          for (int b = 0; b < 4; b++) {
+            float tM = 0.5 * (tA + tB);
+            vec3 pM = ro + rd * tM;
+            if (pM.y - getGeoHeight(pM.xz) < 0.0) tB = tM;
+            else tA = tM;
+          }
+          t = 0.5 * (tA + tB);
+          hitPos = ro + rd * t;
+          break;
+        }
+
+        tPrev = t;
+        float minStep = min(abs(dTerr), abs(dWat));
+        t += max(0.24, minStep * 0.50);
+      }
+
+      // Shading for Mountain Slopes, Five Shades of Greenery & Sakura Groves
+      if (hitType == 1) {
+        vec3 n = getTerrainNormal(hitPos.xz, t);
+        float rCenter = getRiverCenterX(hitPos.z);
+        float rWidth = getRiverWidth(hitPos.z);
+        float distFromRiver = abs(hitPos.x - rCenter);
+
+        float micro1 = fbm4(hitPos.xz * 0.55);
+        float micro2 = noise(hitPos.xz * 2.5);
+
+        n = normalize(n + vec3(micro1 - 0.5, 0.0, micro2 - 0.5) * 0.25);
+        float slope = clamp(n.y, 0.0, 1.0);
+
+        // 1. Stratified Canyon Rock (Dark Slate Basalt & Warm Granite)
+        vec3 darkBasalt = vec3(0.08, 0.11, 0.12);
+        vec3 warmGranite = vec3(0.24, 0.20, 0.18);
+        float strata = 0.5 + 0.5 * sin(hitPos.y * 1.9 + micro1 * 4.0);
+        vec3 rockCol = mix(darkBasalt, warmGranite, strata * 0.65);
+
+        float wetZone = exp(-max(0.0, distFromRiver - rWidth) * 0.22) + exp(-length(hitPos.xz - vec2(rCenter, 36.0)) * 0.07);
+        rockCol *= mix(1.0, 0.48, clamp(wetZone, 0.0, 1.0));
+
+        // 2. Five Distinct Shades of Serene Mountain Greenery
+        vec3 deepCypress   = vec3(0.03, 0.18, 0.10);
+        vec3 viridianPine  = vec3(0.06, 0.36, 0.18);
+        vec3 lushEmerald   = vec3(0.12, 0.55, 0.26);
+        vec3 jadeFoliage   = vec3(0.25, 0.68, 0.30);
+        vec3 sunlitMoss    = vec3(0.52, 0.80, 0.24);
+
+        vec3 greenPalette = mix(deepCypress, viridianPine, smoothstep(0.20, 0.50, micro1));
+        greenPalette = mix(greenPalette, lushEmerald, smoothstep(0.38, 0.66, micro1) * u_greenery);
+        greenPalette = mix(greenPalette, jadeFoliage, smoothstep(0.42, 0.78, micro2) * 0.82);
+        float mossFactor = smoothstep(0.50, 0.85, slope) * exp(-max(0.0, distFromRiver - rWidth) * 0.09);
+        greenPalette = mix(greenPalette, sunlitMoss, clamp(mossFactor + micro2 * 0.32, 0.0, 0.90));
+        greenPalette *= (0.88 + 0.28 * u_greenery);
+
+        float vegMask = smoothstep(0.34, 0.64, slope + (micro1 - 0.5) * 0.24);
+        vec3 surfaceAlbedo = mix(rockCol, greenPalette, vegMask);
+
+        // 3. Mountain Sakura Groves along riverbanks & ridges
+        float sakuraZone = exp(-pow((distFromRiver - (rWidth + 5.8)) * 0.13, 2.0));
+        float sakuraCluster = smoothstep(0.52, 0.72, fbm2(hitPos.xz * 0.24 + vec2(3.1, 8.4))) * sakuraZone * smoothstep(0.45, 0.76, slope);
+        vec3 sakuraPink1 = vec3(1.00, 0.70, 0.80);
+        vec3 sakuraPink2 = vec3(0.94, 0.38, 0.62);
+        vec3 sakuraWhite = vec3(1.00, 0.92, 0.95);
+        vec3 sakuraCol = mix(sakuraPink2, sakuraPink1, micro1);
+        sakuraCol = mix(sakuraCol, sakuraWhite, micro2 * 0.55);
+        surfaceAlbedo = mix(surfaceAlbedo, sakuraCol, clamp(sakuraCluster * 1.40, 0.0, 0.90));
+
+        // 4. Snow-Dusted Alpine Summits
+        float snowMask = smoothstep(32.0, 48.0, hitPos.y + micro1 * 6.0) * smoothstep(0.35, 0.75, slope);
+        surfaceAlbedo = mix(surfaceAlbedo, vec3(0.92, 0.95, 0.99), snowMask * 0.85);
+
+        float shH = getGeoHeight(hitPos.xz + u_sunDir.xz * 6.0);
+        float shadow = clamp(1.0 - max(0.0, (shH - (hitPos.y + u_sunDir.y * 6.0)) * 0.18), 0.24, 1.0);
+
+        float diff = max(0.0, dot(n, u_sunDir)) * shadow;
+        float backLight = max(0.0, dot(-n, u_sunDir)) * vegMask * 0.38;
+        float skyAmb = 0.5 + 0.5 * n.y;
+
+        vec3 lin = u_sunColor * diff * 1.48 + u_sunColor * backLight * 0.88 + u_ambientTint * skyAmb * 0.76;
+
+        vec3 lanternPos1 = vec3(getRiverCenterX(2.0) - 5.2, getWaterElevation(2.0) + 2.2, 2.0);
+        vec3 lanternPos2 = vec3(getRiverCenterX(2.0) + 5.2, getWaterElevation(2.0) + 2.2, 2.0);
+        float dL1 = length(hitPos - lanternPos1);
+        float dL2 = length(hitPos - lanternPos2);
+        float lanternLight = (1.0 / (1.0 + dL1 * dL1 * 0.06) + 1.0 / (1.0 + dL2 * dL2 * 0.06)) * u_lanternGlow;
+        lin += vec3(1.0, 0.62, 0.24) * lanternLight * 1.85;
+
+        col = surfaceAlbedo * lin;
+
+        vec3 halfVec = normalize(u_sunDir - rd);
+        float spec = pow(max(0.0, dot(n, halfVec)), 28.0) * clamp(wetZone, 0.0, 1.0) * shadow;
+        col += u_sunColor * spec * 0.45;
+      }
+
+      // Shading for the Falling River & Multi-Tiered Waterfall
+      if (hitType == 2) {
+        float rCenter = getRiverCenterX(hitPos.z);
+        float flowT = u_time * u_waterSpeed;
+
+        vec2 flowUV = vec2(hitPos.x - rCenter * 0.35, hitPos.z + flowT * 3.6);
+        float wx = cos(flowUV.x * 2.8 + flowUV.y * 2.0) * 0.06;
+        float wz = sin(flowUV.x * 2.0 - flowUV.y * 3.2) * 0.06;
+        float dPlunge = length(hitPos.xz - vec2(getRiverCenterX(31.5), 31.5));
+        float plungeRip = cos(dPlunge * 3.8 - flowT * 6.5) * exp(-dPlunge * 0.08) * 0.08;
+        vec3 wn = normalize(vec3(wx + plungeRip, 1.0, wz + plungeRip));
+
+        // Detect how steeply the water is falling (Grand Waterfall tiers + foreground cascade weirs)
+        float hWatA = getWaterElevation(hitPos.z - 0.35);
+        float hWatB = getWaterElevation(hitPos.z + 0.35);
+        float dropSlope = clamp((hWatB - hWatA) * 1.45, 0.0, 1.0);
+
+        // High-contrast vertical waterfall streaks so falling water looks dynamic & striated
+        vec2 streamUV = vec2((hitPos.x - rCenter) * 2.6, hitPos.z * 0.5 - hitPos.y * 1.15 + flowT * 5.2);
+        float cataractStreaks = pow(fbm4(streamUV * vec2(2.6, 1.0)), 1.35);
+        float fineFoam = noise(streamUV * vec2(8.0, 3.0));
+
+        float plungeZone = exp(-pow((hitPos.z - 31.2) * 0.45, 2.0))
+                         + 0.70 * exp(-pow((hitPos.z - 35.0) * 0.65, 2.0))
+                         + 0.70 * exp(-pow((hitPos.z - 39.0) * 0.65, 2.0))
+                         + 0.68 * exp(-pow((hitPos.z - 11.2) * 0.52, 2.0))
+                         + 0.68 * exp(-pow((hitPos.z + 4.5) * 0.52, 2.0));
+
+        float foamMask = clamp(
+          dropSlope * (0.22 + 0.88 * cataractStreaks + 0.28 * fineFoam) +
+          plungeZone * (0.38 + 0.62 * cataractStreaks),
+          0.0, 1.0
+        );
+
+        vec3 deepEmeraldWater = vec3(0.02, 0.25, 0.22);
+        vec3 shallowJadeWater = vec3(0.08, 0.54, 0.44);
+        float edgeDist = abs(hitPos.x - rCenter) / max(1.0, getRiverWidth(hitPos.z));
+        vec3 waterBodyCol = mix(deepEmeraldWater, shallowJadeWater, clamp(edgeDist * 0.85 + cataractStreaks * 0.35, 0.0, 1.0));
+
+        vec3 reflDir = reflect(rd, wn);
+        reflDir.y = max(0.05, abs(reflDir.y));
+        vec3 reflSky = renderSky(reflDir);
+        float bankReflMask = smoothstep(0.25, 0.85, edgeDist);
+        vec3 canopyRefl = mix(vec3(0.10, 0.44, 0.22), vec3(0.96, 0.64, 0.76), 0.40);
+        vec3 envRefl = mix(reflSky, canopyRefl, bankReflMask * 0.48);
+
+        float fresnel = clamp(pow(1.0 - max(0.0, dot(-rd, wn)), 3.2), 0.16, 0.80);
+        vec3 waterCol = mix(waterBodyCol, envRefl, fresnel * (1.0 - dropSlope * 0.65));
+
+        vec3 foamColor = mix(vec3(0.92, 0.98, 1.00), u_sunColor * 1.08, 0.30);
+        waterCol = mix(waterCol, foamColor, foamMask * 0.88);
+
+        vec3 halfVec = normalize(u_sunDir - rd);
+        float waterSpec = pow(max(0.0, dot(wn, halfVec)), 90.0);
+        waterCol += u_sunColor * waterSpec * 2.2;
+
+        // Floating sakura petals on the river surface
+        vec2 petalUV = vec2(hitPos.x * 2.2, hitPos.z * 2.2 + flowT * 2.4);
+        float pHash = hash21(floor(petalUV));
+        if (pHash > 0.93 && dropSlope < 0.35) {
+          vec2 pLocal = fract(petalUV) - 0.5;
+          float pDot = smoothstep(0.26, 0.12, length(pLocal));
+          waterCol = mix(waterCol, vec3(1.0, 0.72, 0.82), pDot * 0.88);
+        }
+
+        // Warm lantern reflection on the river near the bridge
+        float bridgeDistZ = abs(hitPos.z - 2.0);
+        if (bridgeDistZ < 14.0) {
+          float waveWobble = sin(hitPos.z * 4.0 + u_time * 5.0) * 0.6;
+          float lRefl = exp(-pow((abs(hitPos.x - rCenter) - 4.2 + waveWobble) * 0.65, 2.0)) * exp(-bridgeDistZ * 0.18);
+          waterCol += vec3(1.0, 0.60, 0.25) * lRefl * u_lanternGlow * 0.85;
+        }
+
+        col = waterCol;
+      }
+
+      // Subtle Canyon Mist & Waterfall Spray Plume
+      if (hitType > 0) {
+        float distFog = 1.0 - exp(-t * 0.0058 * u_mist);
+        float valleyMist = exp(-max(0.0, hitPos.y - getWaterElevation(hitPos.z)) * 0.24) * (1.0 - exp(-t * 0.014)) * 0.24 * u_mist;
+
+        vec3 cataractBase = vec3(getRiverCenterX(31.5), getWaterElevation(31.5) + 2.2, 31.5);
+        float sprayDist = length((hitPos - cataractBase) * vec3(0.12, 0.18, 0.14));
+        float waterfallSpray = exp(-sprayDist * sprayDist) * (0.34 + 0.20 * fbm2(hitPos.xy * 0.3 - vec2(0.0, u_time * 0.9))) * u_mist;
+
+        vec3 mistColor = mix(u_fogColor, u_sunColor, 0.25);
+        col = mix(col, mistColor, clamp(distFog + valleyMist, 0.0, 0.68));
+        col = mix(col, mix(vec3(0.95, 0.97, 1.00), u_sunColor, 0.28), clamp(waterfallSpray, 0.0, 0.40));
+      }
+
+      // Subtle Crepuscular Sunbeams (God-Rays)
+      float sunViewDot = max(0.0, dot(rd, u_sunDir));
+      float rayAngle = atan(uv.y - u_sunDir.y * 0.6, uv.x - u_sunDir.x * 0.8);
+      float rayBeams = 0.5 + 0.5 * sin(rayAngle * 14.0 + u_time * 0.25) * cos(rayAngle * 9.0 - u_time * 0.18);
+      float godRays = pow(sunViewDot, 3.8) * rayBeams * 0.12 * u_mist;
+      col += u_sunColor * godRays;
+
+      // Filmic Tone Mapping
+      col = (col * (2.51 * col + 0.03)) / (col * (2.43 * col + 0.59) + 0.14);
+      col = pow(clamp(col, 0.0, 1.0), vec3(0.92));
+
+      gl_FragColor = vec4(col, 1.0);
+    }
+  `;
+
+  function compileShader(type, source) {
+    const s = gl.createShader(type);
+    gl.shaderSource(s, source);
+    gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+      console.error('Shader compile error:', gl.getShaderInfoLog(s));
+    }
+    return s;
+  }
+
+  const prog = gl.createProgram();
+  gl.attachShader(prog, compileShader(gl.VERTEX_SHADER, vsSource));
+  gl.attachShader(prog, compileShader(gl.FRAGMENT_SHADER, fsSource));
+  gl.linkProgram(prog);
+  gl.useProgram(prog);
+
+  const quadBuf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1]), gl.STATIC_DRAW);
+  const aPosLoc = gl.getAttribLocation(prog, 'a_pos');
+  gl.enableVertexAttribArray(aPosLoc);
+  gl.vertexAttribPointer(aPosLoc, 2, gl.FLOAT, false, 0, 0);
+
+  const uniforms = {
+    res: gl.getUniformLocation(prog, 'u_res'),
+    time: gl.getUniformLocation(prog, 'u_time'),
+    camPos: gl.getUniformLocation(prog, 'u_camPos'),
+    camFwd: gl.getUniformLocation(prog, 'u_camFwd'),
+    camRight: gl.getUniformLocation(prog, 'u_camRight'),
+    camUp: gl.getUniformLocation(prog, 'u_camUp'),
+    waterSpeed: gl.getUniformLocation(prog, 'u_waterSpeed'),
+    greenery: gl.getUniformLocation(prog, 'u_greenery'),
+    mist: gl.getUniformLocation(prog, 'u_mist'),
+    sunDir: gl.getUniformLocation(prog, 'u_sunDir'),
+    skyZenith: gl.getUniformLocation(prog, 'u_skyZenith'),
+    skyHorizon: gl.getUniformLocation(prog, 'u_skyHorizon'),
+    sunColor: gl.getUniformLocation(prog, 'u_sunColor'),
+    fogColor: gl.getUniformLocation(prog, 'u_fogColor'),
+    ambientTint: gl.getUniformLocation(prog, 'u_ambientTint'),
+    lanternGlow: gl.getUniformLocation(prog, 'u_lanternGlow'),
+    starIntensity: gl.getUniformLocation(prog, 'u_starIntensity')
+  };
+
+  // ==========================================================================
+  // PASS 2: 3D BOTANICAL SAKURA & EMERALD TREES, ARCHED SANCTUARY BRIDGE,
+  //         GLOWING LANTERNS, WATER RIPPLES & 4,500 FALLING CHERRY PETALS
+  // ==========================================================================
+  function normalize3(v) {
+    const len = Math.hypot(v[0], v[1], v[2]) || 1;
+    return [v[0] / len, v[1] / len, v[2] / len];
+  }
+
+  function cross3(a, b) {
+    return [
+      a[1] * b[2] - a[2] * b[1],
+      a[2] * b[0] - a[0] * b[2],
+      a[0] * b[1] - a[1] * b[0]
+    ];
+  }
+
+  function sub3(a, b) {
+    return [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+  }
+
+  let camBasis = { fwd: [0,0,1], right: [1,0,0], up: [0,1,0] };
+
+  function updateCameraBasis() {
+    const fwd = normalize3(sub3(state.camTarget, state.camPos));
+    const worldUp = [0, 1, 0];
+    const right = normalize3(cross3(fwd, worldUp));
+    const up = normalize3(cross3(right, fwd));
+    camBasis = { fwd, right, up };
+  }
+
+  function project3D(wx, wy, wz) {
+    const dx = wx - state.camPos[0];
+    const dy = wy - state.camPos[1];
+    const dz = wz - state.camPos[2];
+
+    const cz = dx * camBasis.fwd[0] + dy * camBasis.fwd[1] + dz * camBasis.fwd[2];
+    if (cz <= 0.4) return null;
+
+    const cx = dx * camBasis.right[0] + dy * camBasis.right[1] + dz * camBasis.right[2];
+    const cy = dx * camBasis.up[0] + dy * camBasis.up[1] + dz * camBasis.up[2];
+
+    const fovFactor = 0.82;
+    const aspect = state.width / state.height;
+    const ndcX = (cx / (cz * fovFactor)) / aspect;
+    const ndcY = (cy / (cz * fovFactor));
+
+    const sx = (ndcX * 0.5 + 0.5) * state.width;
+    const sy = (0.5 - ndcY * 0.5) * state.height;
+    const perspectiveScale = state.height / (cz * fovFactor * 2.0);
+
+    return { sx, sy, cz, scale: perspectiveScale };
+  }
+
+  // Generate 3D Sakura Trees & Lush Emerald Pines along the riverbanks
+  const botanicalTrees = [];
+
+  function generateTree3D(baseX, baseZ, scale, leanDirX, leanDirZ, seed, isEmeraldTree = false) {
+    const baseY = getTerrainElevation(baseX, baseZ) - 0.25;
+    const segments = [];
+    const blossoms = [];
+
+    function branch(x1, y1, z1, dirX, dirY, dirZ, length, radius, depth, bSeed) {
+      const x2 = x1 + dirX * length;
+      const y2 = y1 + dirY * length;
+      const z2 = z1 + dirZ * length;
+      // Midpoint curve offset for natural gnarled wood architecture
+      const mx = (x1 + x2) * 0.5 + (hash21(bSeed, depth) - 0.5) * 0.35 * scale;
+      const my = (y1 + y2) * 0.5 + 0.12 * scale;
+      const mz = (z1 + z2) * 0.5;
+      segments.push({ x1, y1, z1, mx, my, mz, x2, y2, z2, r1: radius, r2: radius * 0.70, depth });
+
+      if (depth <= 2) {
+        const clusterCount = depth === 1 ? 7 : 4;
+        for (let c = 0; c < clusterCount; c++) {
+          const h1 = hash21(bSeed + c * 7.1, depth * 3.3) - 0.5;
+          const h2 = hash21(bSeed + c * 13.7, depth * 5.9) - 0.5;
+          const h3 = hash21(bSeed + c * 19.3, depth * 2.1) - 0.5;
+          blossoms.push({
+            x: x2 + h1 * 1.55 * scale,
+            y: y2 + h2 * 0.85 * scale + 0.15,
+            z: z2 + h3 * 1.55 * scale,
+            radius: (0.34 + hash21(bSeed, c * 11.1) * 0.36) * scale,
+            hueShift: hash21(c * 3.7, bSeed),
+            swayPhase: bSeed + c * 1.7,
+            isEmerald: isEmeraldTree
+          });
+        }
+      }
+
+      if (depth > 1) {
+        const subCount = depth === 4 ? 3 : 2;
+        for (let i = 0; i < subCount; i++) {
+          const angle = (i - (subCount - 1) * 0.5) * 0.72 + (hash21(bSeed + i, depth) - 0.5) * 0.32;
+          const cosA = Math.cos(angle);
+          const sinA = Math.sin(angle);
+          const nx = dirX * cosA - dirZ * sinA + leanDirX * 0.12;
+          const nz = dirX * sinA + dirZ * cosA + leanDirZ * 0.08;
+          const ny = Math.max(0.22, dirY * 0.82 + 0.18 * hash21(depth, bSeed + i * 5.1));
+          const nLen = Math.hypot(nx, ny, nz) || 1;
+          branch(
+            x2, y2, z2,
+            nx / nLen, ny / nLen, nz / nLen,
+            length * (0.70 + 0.1 * hash21(i, bSeed)),
+            radius * 0.66,
+            depth - 1,
+            bSeed + i * 31.7 + depth * 11.3
+          );
+        }
+      }
+    }
+
+    const initDir = normalize3([leanDirX * 0.32, 0.92, leanDirZ * 0.15]);
+    branch(baseX, baseY, baseZ, initDir[0], initDir[1], initDir[2], 2.0 * scale, 0.26 * scale, 4, seed);
+    return { baseX, baseY, baseZ, segments, blossoms, isEmeraldTree };
+  }
+
+  const treeSpecs = [
+    // Foreground left & right riverbanks framing the view
+    { z: -10.5, side: -1, distOffset: 2.2, scale: 1.22, emerald: false },
+    { z: -9.0,  side:  1, distOffset: 3.4, scale: 1.18, emerald: true  },
+    { z: -6.5,  side:  1, distOffset: 2.3, scale: 1.22, emerald: false },
+    { z: -4.2,  side: -1, distOffset: 3.6, scale: 1.20, emerald: true  },
+    // Flanking the romantic Sakura Bridge (z ~ 2.0)
+    { z:  0.8,  side: -1, distOffset: 2.0, scale: 1.28, emerald: false },
+    { z:  1.4,  side:  1, distOffset: 2.0, scale: 1.26, emerald: false },
+    { z:  4.5,  side: -1, distOffset: 3.4, scale: 1.22, emerald: true  },
+    { z:  6.0,  side:  1, distOffset: 2.4, scale: 1.22, emerald: false },
+    // Midground cascades (z ~ 11..22)
+    { z: 11.5,  side: -1, distOffset: 2.8, scale: 1.24, emerald: false },
+    { z: 13.0,  side:  1, distOffset: 3.8, scale: 1.22, emerald: true  },
+    { z: 16.5,  side:  1, distOffset: 2.8, scale: 1.24, emerald: false },
+    { z: 19.0,  side: -1, distOffset: 3.0, scale: 1.22, emerald: false },
+    { z: 22.0,  side: -1, distOffset: 4.5, scale: 1.26, emerald: true  },
+    // Surrounding the Grand Waterfall Plunge Pool & Cliff Terraces (z ~ 26..37)
+    { z: 26.0,  side: -1, distOffset: 3.0, scale: 1.30, emerald: false },
+    { z: 26.8,  side:  1, distOffset: 3.0, scale: 1.30, emerald: false },
+    { z: 31.0,  side: -1, distOffset: 3.8, scale: 1.32, emerald: false },
+    { z: 31.5,  side:  1, distOffset: 3.8, scale: 1.32, emerald: false },
+    { z: 35.5,  side: -1, distOffset: 4.8, scale: 1.28, emerald: true  },
+    { z: 36.2,  side:  1, distOffset: 4.5, scale: 1.28, emerald: false }
+  ];
+
+  treeSpecs.forEach((loc, idx) => {
+    const rCenter = getRiverCenterX(loc.z);
+    const rWidth = getRiverWidth(loc.z);
+    const bx = rCenter + loc.side * (rWidth * 0.95 + loc.distOffset);
+    const leanX = -loc.side * (loc.emerald ? 0.35 : 0.72);
+    const leanZ = -0.18;
+    botanicalTrees.push(generateTree3D(bx, loc.z, loc.scale, leanX, leanZ, idx * 97.3 + 11.0, loc.emerald));
+  });
+
+  const bridgeZ = 2.0;
+  const bridgeCenterX = getRiverCenterX(bridgeZ);
+  const bridgeHalfSpan = getRiverWidth(bridgeZ) * 0.98;
+  const bridgeBaseY = getWaterElevation(bridgeZ) + 0.65;
+
+  // 3D Falling & Floating Cherry Blossom Petals Pool
+  const MAX_PETALS = 4500;
+  const petals = [];
+
+  function createPetal(randomY = true) {
+    const nearCameraBias = Math.random() < 0.34;
+    const z = nearCameraBias
+      ? (-15.0 + Math.random() * 28.0)
+      : (-18.0 + Math.random() * 60.0);
+    const rCenter = getRiverCenterX(z);
+    const spreadX = nearCameraBias ? 22.0 : 40.0;
+    const x = rCenter + (Math.random() - 0.5) * spreadX;
+    const waterY = getWaterElevation(z);
+    const y = randomY ? (waterY + Math.random() * 19.0) : (waterY + 11.0 + Math.random() * 12.0);
+
+    const paletteIdx = Math.floor(Math.random() * 4);
+    const colors = [
+      ['#ffdce5', '#ff9eb5'],
+      ['#ffb7c5', '#ff6b9d'],
+      ['#ff8da6', '#e0457b'],
+      ['#fff0f5', '#ffb3c6']
+    ];
+
+    return {
+      x, y, z,
+      vx: (Math.random() - 0.5) * 0.85,
+      vy: -0.62 - Math.random() * 0.65,
+      vz: -0.45 - Math.random() * 0.7,
+      rot: Math.random() * Math.PI * 2,
+      rotSpeed: (Math.random() - 0.5) * 3.4,
+      tilt: Math.random() * Math.PI,
+      tiltSpeed: 1.4 + Math.random() * 2.2,
+      size: 0.09 + Math.random() * 0.09,
+      phase: Math.random() * 100.0,
+      colorPair: colors[paletteIdx],
+      onWater: false,
+      waterLife: 0
+    };
+  }
+
+  for (let i = 0; i < MAX_PETALS; i++) {
+    petals.push(createPetal(true));
+  }
+
+  const waterRipples = [];
+  for (let i = 0; i < 65; i++) {
+    const rz = -18.0 + Math.random() * 50.0;
+    waterRipples.push({
+      x: getRiverCenterX(rz) + (Math.random() - 0.5) * getRiverWidth(rz) * 1.1,
+      z: rz,
+      radius: Math.random() * 1.4,
+      maxRadius: 0.9 + Math.random() * 1.1
+    });
+  }
+
+  const fireflies = [];
+  for (let i = 0; i < 90; i++) {
+    const fz = -18.0 + Math.random() * 54.0;
+    const fx = getRiverCenterX(fz) + (Math.random() - 0.5) * 28.0;
+    const fy = getWaterElevation(fz) + 0.5 + Math.random() * 9.0;
+    fireflies.push({
+      x: fx, y: fy, z: fz,
+      phase: Math.random() * Math.PI * 2,
+      speed: 0.6 + Math.random() * 1.1,
+      size: 0.075 + Math.random() * 0.09
+    });
+  }
+
+  function drawSakuraPetal(ctx, sx, sy, radius, rot, tiltCos, fillGradA, fillGradB, alpha) {
+    ctx.save();
+    ctx.translate(sx, sy);
+    ctx.rotate(rot);
+    ctx.scale(1.0, Math.max(0.28, Math.abs(tiltCos)));
+    ctx.globalAlpha = alpha;
+
+    ctx.beginPath();
+    ctx.moveTo(0, radius * 0.95);
+    ctx.bezierCurveTo(-radius * 0.95, radius * 0.35, -radius * 0.85, -radius * 0.75, -radius * 0.22, -radius * 0.95);
+    ctx.lineTo(0, -radius * 0.62);
+    ctx.lineTo(radius * 0.22, -radius * 0.95);
+    ctx.bezierCurveTo(radius * 0.85, -radius * 0.75, radius * 0.95, radius * 0.35, 0, radius * 0.95);
+    ctx.closePath();
+
+    ctx.fillStyle = tiltCos >= 0 ? fillGradA : fillGradB;
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function renderBridgeAndLanterns(ctx) {
+    const steps = 16;
+    const deckWidth = 1.65;
+    const archHeight = 2.15;
+
+    const leftRailPts = [];
+    const rightRailPts = [];
+    const deckLeftPts = [];
+    const deckRightPts = [];
+
+    for (let i = 0; i <= steps; i++) {
+      const u = i / steps;
+      const s = (u - 0.5) * 2.0;
+      const wx = bridgeCenterX + s * bridgeHalfSpan;
+      const archY = bridgeBaseY + (1.0 - s * s) * archHeight;
+
+      const pDL = project3D(wx, archY, bridgeZ - deckWidth * 0.5);
+      const pDR = project3D(wx, archY, bridgeZ + deckWidth * 0.5);
+      const pRL = project3D(wx, archY + 0.85, bridgeZ - deckWidth * 0.5);
+      const pRR = project3D(wx, archY + 0.85, bridgeZ + deckWidth * 0.5);
+
+      if (pDL && pDR && pRL && pRR) {
+        deckLeftPts.push({ ...pDL, wx, archY, u });
+        deckRightPts.push({ ...pDR, wx, archY, u });
+        leftRailPts.push(pRL);
+        rightRailPts.push(pRR);
+      }
+    }
+
+    if (deckLeftPts.length < 4) return;
+
+    [-0.55, 0.55].forEach(s => {
+      const px = bridgeCenterX + s * bridgeHalfSpan;
+      const topY = bridgeBaseY + (1.0 - s * s) * archHeight;
+      const botY = getWaterElevation(bridgeZ) - 0.2;
+      [-deckWidth * 0.42, deckWidth * 0.42].forEach(dz => {
+        const pTop = project3D(px, topY, bridgeZ + dz);
+        const pBot = project3D(px, botY, bridgeZ + dz);
+        if (pTop && pBot) {
+          ctx.strokeStyle = '#2d1b18';
+          ctx.lineWidth = Math.max(2.0, pTop.scale * 0.24);
+          ctx.beginPath();
+          ctx.moveTo(pTop.sx, pTop.sy);
+          ctx.lineTo(pBot.sx, pBot.sy);
+          ctx.stroke();
+        }
+      });
+    });
+
+    for (let i = 0; i < deckLeftPts.length - 1; i++) {
+      const a = deckLeftPts[i];
+      const b = deckLeftPts[i + 1];
+      const c = deckRightPts[i + 1];
+      const d = deckRightPts[i];
+
+      ctx.fillStyle = i % 2 === 0 ? 'rgba(92, 42, 38, 0.92)' : 'rgba(74, 32, 30, 0.92)';
+      ctx.beginPath();
+      ctx.moveTo(a.sx, a.sy);
+      ctx.lineTo(b.sx, b.sy);
+      ctx.lineTo(c.sx, c.sy);
+      ctx.lineTo(d.sx, d.sy);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    for (let i = 0; i < deckLeftPts.length; i += 2) {
+      const dL = deckLeftPts[i];
+      const rL = leftRailPts[i];
+      const dR = deckRightPts[i];
+      const rR = rightRailPts[i];
+
+      ctx.strokeStyle = '#9e2a2b';
+      ctx.lineWidth = Math.max(1.5, dL.scale * 0.14);
+      ctx.beginPath();
+      ctx.moveTo(dL.sx, dL.sy);
+      ctx.lineTo(rL.sx, rL.sy);
+      ctx.moveTo(dR.sx, dR.sy);
+      ctx.lineTo(rR.sx, rR.sy);
+      ctx.stroke();
+    }
+
+    [leftRailPts, rightRailPts].forEach(rail => {
+      ctx.strokeStyle = '#b83336';
+      ctx.lineWidth = Math.max(2.0, rail[0].scale * 0.16);
+      ctx.beginPath();
+      rail.forEach((p, idx) => {
+        if (idx === 0) ctx.moveTo(p.sx, p.sy);
+        else ctx.lineTo(p.sx, p.sy);
+      });
+      ctx.stroke();
+    });
+
+    const lanternCoords = [
+      [bridgeCenterX - bridgeHalfSpan * 0.92, bridgeBaseY + 1.25, bridgeZ - deckWidth * 0.55],
+      [bridgeCenterX - bridgeHalfSpan * 0.92, bridgeBaseY + 1.25, bridgeZ + deckWidth * 0.55],
+      [bridgeCenterX + bridgeHalfSpan * 0.92, bridgeBaseY + 1.25, bridgeZ - deckWidth * 0.55],
+      [bridgeCenterX + bridgeHalfSpan * 0.92, bridgeBaseY + 1.25, bridgeZ + deckWidth * 0.55]
+    ];
+
+    lanternCoords.forEach(([lx, ly, lz]) => {
+      const lp = project3D(lx, ly, lz);
+      if (!lp || lp.cz > 85) return;
+      const r = Math.max(3.5, lp.scale * 0.55);
+
+      const grad = ctx.createRadialGradient(lp.sx, lp.sy, r * 0.1, lp.sx, lp.sy, r * 3.2);
+      grad.addColorStop(0, 'rgba(255, 245, 200, 0.95)');
+      grad.addColorStop(0.35, 'rgba(255, 180, 75, 0.55)');
+      grad.addColorStop(1, 'rgba(255, 120, 40, 0.0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(lp.sx, lp.sy, r * 3.2, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = '#2b2d2f';
+      ctx.beginPath();
+      ctx.moveTo(lp.sx - r * 0.7, lp.sy - r * 0.35);
+      ctx.lineTo(lp.sx + r * 0.7, lp.sy - r * 0.35);
+      ctx.lineTo(lp.sx, lp.sy - r * 0.85);
+      ctx.closePath();
+      ctx.fill();
+    });
+  }
+
+  function renderBotanicalTrees(ctx) {
+    const swayTime = state.time * 1.4;
+    const windAmp = 0.10 * state.windStrength + state.gustImpulse * 0.30;
+
+    const sortedTrees = botanicalTrees.map(tree => {
+      const p = project3D(tree.baseX, tree.baseY, tree.baseZ);
+      const dist = p ? p.cz : 999;
+      return { tree, dist };
+    }).sort((a, b) => b.dist - a.dist);
+
+    sortedTrees.forEach(({ tree, dist }) => {
+      if (dist > 80 || dist < 4.5) return;
+      const nearFade = smoothstep(4.5, 9.0, dist);
+      const fogFactor = Math.exp(-dist * 0.011 * state.mistDensity) * nearFade;
+      if (fogFactor < 0.06) return;
+
+      // 1. Curved organic branches
+      ctx.save();
+      ctx.lineCap = 'round';
+      tree.segments.forEach(seg => {
+        const sway1 = (4 - seg.depth) * windAmp * Math.sin(swayTime + seg.x1 * 0.4);
+        const sway2 = (5 - seg.depth) * windAmp * Math.sin(swayTime + seg.x2 * 0.4);
+        const swayM = 0.5 * (sway1 + sway2);
+
+        const p1 = project3D(seg.x1 + sway1, seg.y1, seg.z1);
+        const pM = project3D(seg.mx + swayM, seg.my, seg.mz);
+        const p2 = project3D(seg.x2 + sway2, seg.y2, seg.z2);
+        if (!p1 || !pM || !p2) return;
+
+        ctx.strokeStyle = seg.depth >= 3
+          ? `rgba(38, 24, 24, ${0.90 * fogFactor})`
+          : `rgba(62, 36, 38, ${0.85 * fogFactor})`;
+        ctx.lineWidth = Math.min(16.0, Math.max(1.1, p1.scale * seg.r1));
+        ctx.beginPath();
+        ctx.moveTo(p1.sx, p1.sy);
+        ctx.quadraticCurveTo(pM.sx, pM.sy, p2.sx, p2.sy);
+        ctx.stroke();
+      });
+      ctx.restore();
+
+      // 2. Layered Botanical Foliage & Blossom Sprays (Shadow base + Mid-tone + Sunlit florets)
+      tree.blossoms.forEach(b => {
+        const bSwayX = windAmp * 1.4 * Math.sin(swayTime * 1.15 + b.swayPhase);
+        const bSwayY = windAmp * 0.45 * Math.cos(swayTime * 0.95 + b.swayPhase);
+        const bp = project3D(b.x + bSwayX, b.y + bSwayY, b.z);
+        if (!bp) return;
+
+        const r = Math.min(26.0, bp.scale * b.radius);
+        if (r < 1.5 || bp.sx < -r * 2 || bp.sx > state.width + r * 2 || bp.sy < -r * 2 || bp.sy > state.height + r * 2) return;
+
+        if (b.isEmerald) {
+          // Deep viridian shadow under-bough
+          ctx.fillStyle = `rgba(14, 62, 34, ${0.65 * fogFactor})`;
+          ctx.beginPath();
+          ctx.arc(bp.sx + r * 0.12, bp.sy + r * 0.16, r * 0.92, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Mid-tone jade foliage spray
+          ctx.fillStyle = b.hueShift > 0.5
+            ? `rgba(34, 128, 64, ${0.78 * fogFactor})`
+            : `rgba(24, 104, 54, ${0.78 * fogFactor})`;
+          ctx.beginPath();
+          ctx.arc(bp.sx - r * 0.08, bp.sy - r * 0.05, r * 0.82, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Sunlit chartreuse/emerald top leaf cluster
+          ctx.fillStyle = `rgba(116, 206, 78, ${0.75 * fogFactor})`;
+          ctx.beginPath();
+          ctx.arc(bp.sx - r * 0.22, bp.sy - r * 0.22, r * 0.54, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          // Deep rose-magenta blossom shadow base
+          ctx.fillStyle = `rgba(195, 65, 112, ${0.58 * fogFactor})`;
+          ctx.beginPath();
+          ctx.arc(bp.sx + r * 0.12, bp.sy + r * 0.15, r * 0.92, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Classic sakura pink mid-cluster
+          ctx.fillStyle = b.hueShift > 0.5
+            ? `rgba(255, 158, 188, ${0.80 * fogFactor})`
+            : `rgba(248, 132, 168, ${0.78 * fogFactor})`;
+          ctx.beginPath();
+          ctx.arc(bp.sx - r * 0.08, bp.sy - r * 0.05, r * 0.80, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Sunlit pearl-blush top petals
+          ctx.fillStyle = `rgba(255, 232, 242, ${0.85 * fogFactor})`;
+          ctx.beginPath();
+          ctx.arc(bp.sx - r * 0.22, bp.sy - r * 0.22, r * 0.52, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      });
+    });
+  }
+
+  function updateAndRenderParticles(ctx, dt) {
+    const activeCount = Math.min(MAX_PETALS, state.petalCount);
+    const windBaseX = (1.35 * state.windStrength + state.gustImpulse * 4.5) * Math.cos(state.time * 0.28);
+    const windBaseZ = (-0.95 * state.windStrength - state.gustImpulse * 2.2);
+
+    ctx.save();
+    waterRipples.forEach(rip => {
+      rip.radius += dt * 0.75 * state.waterSpeed;
+      rip.z -= dt * 1.6 * state.waterSpeed;
+      if (rip.radius > rip.maxRadius || rip.z < -22.0) {
+        const rz = -14.0 + Math.random() * 44.0;
+        rip.z = rz;
+        rip.x = getRiverCenterX(rz) + (Math.random() - 0.5) * getRiverWidth(rz) * 0.95;
+        rip.radius = 0.05;
+      }
+      const wy = getWaterElevation(rip.z) + 0.04;
+      const p = project3D(rip.x, wy, rip.z);
+      if (!p || p.cz > 55) return;
+
+      const rx = p.scale * rip.radius;
+      const ry = rx * 0.36;
+      const alpha = (1.0 - rip.radius / rip.maxRadius) * 0.42 * Math.exp(-p.cz * 0.025);
+      if (alpha > 0.02 && rx > 1.5) {
+        ctx.strokeStyle = `rgba(255, 230, 240, ${alpha})`;
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.ellipse(p.sx, p.sy, rx, ry, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    });
+    ctx.restore();
+
+    const projectedPetals = [];
+
+    for (let i = 0; i < activeCount; i++) {
+      const p = petals[i];
+
+      if (p.onWater) {
+        p.waterLife += dt;
+        p.z -= dt * 2.35 * state.waterSpeed;
+        const rCenter = getRiverCenterX(p.z);
+        p.x += (rCenter - p.x) * dt * 0.18 + Math.sin(state.time * 2.0 + p.phase) * dt * 0.25;
+        p.y = getWaterElevation(p.z) + 0.05;
+        p.rot += dt * 0.45;
+
+        if (p.waterLife > 5.5 || p.z < -24.0) {
+          Object.assign(p, createPetal(false));
+        }
+      } else {
+        const vortexAngle = p.x * 0.15 + p.z * 0.12 + state.time * 1.3;
+        const swirlX = Math.cos(vortexAngle) * 1.25 * state.windStrength;
+        const swirlY = Math.sin(vortexAngle * 1.3) * 0.42 * state.windStrength;
+        const swirlZ = Math.sin(vortexAngle) * 1.05 * state.windStrength;
+
+        const mouseBreezeX = (state.mouseNormX - 0.5) * 1.8;
+
+        p.x += (p.vx + windBaseX + swirlX + mouseBreezeX) * dt;
+        p.y += (p.vy + swirlY) * dt;
+        p.z += (p.vz + windBaseZ + swirlZ) * dt;
+
+        p.rot += p.rotSpeed * dt * (1.0 + state.gustImpulse * 0.8);
+        p.tilt += p.tiltSpeed * dt * (1.0 + state.windStrength * 0.35);
+
+        const rCenter = getRiverCenterX(p.z);
+        const rWidth = getRiverWidth(p.z);
+        const waterY = getWaterElevation(p.z);
+
+        if (p.y <= waterY + 0.06 && Math.abs(p.x - rCenter) < rWidth * 0.92 && p.z < 30.0) {
+          p.onWater = true;
+          p.y = waterY + 0.05;
+          p.waterLife = 0;
+        } else if (p.y < waterY - 2.0 || p.z < -25.0 || p.z > 55.0 || Math.abs(p.x - rCenter) > 34.0) {
+          Object.assign(p, createPetal(false));
+        }
+      }
+
+      const proj = project3D(p.x, p.y, p.z);
+      if (!proj || proj.cz > 75.0) continue;
+
+      const rad = proj.scale * p.size * state.petalSizeScale;
+      if (rad < 0.7 || proj.sx < -40 || proj.sx > state.width + 40 || proj.sy < -40 || proj.sy > state.height + 40) continue;
+
+      projectedPetals.push({ p, proj, rad });
+    }
+
+    projectedPetals.sort((a, b) => b.proj.cz - a.proj.cz);
+
+    for (let i = 0; i < projectedPetals.length; i++) {
+      const { p, proj, rad } = projectedPetals[i];
+      const depthAlpha = Math.min(0.95, Math.exp(-proj.cz * 0.014));
+      const tiltCos = p.onWater ? 0.38 : Math.cos(p.tilt);
+
+      if (proj.cz < 5.5 && rad > 8.5) {
+        const bokehGrad = ctx.createRadialGradient(proj.sx, proj.sy, rad * 0.1, proj.sx, proj.sy, rad * 1.45);
+        bokehGrad.addColorStop(0, 'rgba(255, 210, 225, 0.55)');
+        bokehGrad.addColorStop(0.6, 'rgba(255, 155, 185, 0.25)');
+        bokehGrad.addColorStop(1, 'rgba(255, 130, 170, 0.0)');
+        ctx.fillStyle = bokehGrad;
+        ctx.beginPath();
+        ctx.arc(proj.sx, proj.sy, rad * 1.45, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      drawSakuraPetal(
+        ctx,
+        proj.sx,
+        proj.sy,
+        Math.min(rad, 22.0),
+        p.rot,
+        tiltCos,
+        p.colorPair[0],
+        p.colorPair[1],
+        depthAlpha
+      );
+    }
+
+    fireflies.forEach(f => {
+      f.phase += dt * f.speed * 2.2;
+      f.x += Math.sin(f.phase * 0.7) * dt * 0.45;
+      f.y += Math.cos(f.phase * 1.1) * dt * 0.28;
+      f.z += Math.sin(f.phase * 0.5) * dt * 0.35;
+
+      const proj = project3D(f.x, f.y, f.z);
+      if (!proj || proj.cz > 60) return;
+
+      const pulse = 0.45 + 0.55 * Math.sin(f.phase * 1.6);
+      const r = Math.max(2.2, proj.scale * f.size * (0.8 + 0.5 * pulse));
+      if (proj.sx < -20 || proj.sx > state.width + 20 || proj.sy < -20 || proj.sy > state.height + 20) return;
+
+      const grad = ctx.createRadialGradient(proj.sx, proj.sy, 0, proj.sx, proj.sy, r * 2.8);
+      grad.addColorStop(0, `rgba(255, 250, 205, ${0.88 * pulse})`);
+      grad.addColorStop(0.4, `rgba(255, 195, 95, ${0.45 * pulse})`);
+      grad.addColorStop(1, 'rgba(255, 160, 60, 0.0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(proj.sx, proj.sy, r * 2.8, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  }
+
+  // ==========================================================================
+  // PROCEDURAL WEB AUDIO API SERENE SOUNDSCAPE SYNTHESIZER
+  // ==========================================================================
+  let audioCtx = null;
+  let audioMuted = true;
+  let masterGain = null;
+
+  function toggleAudio() {
+    if (!audioCtx) {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      audioCtx = new AudioContextClass();
+      masterGain = audioCtx.createGain();
+      masterGain.gain.value = 0.0;
+      masterGain.connect(audioCtx.destination);
+
+      const bufferSize = audioCtx.sampleRate * 4;
+      const noiseBuffer = audioCtx.createBuffer(2, bufferSize, audioCtx.sampleRate);
+      for (let ch = 0; ch < 2; ch++) {
+        const out = noiseBuffer.getChannelData(ch);
+        let lastOut = 0.0;
+        for (let i = 0; i < bufferSize; i++) {
+          const white = Math.random() * 2 - 1;
+          out[i] = (lastOut + 0.02 * white) / 1.02;
+          lastOut = out[i];
+          out[i] *= 1.8;
+        }
+      }
+
+      const riverSource = audioCtx.createBufferSource();
+      riverSource.buffer = noiseBuffer;
+      riverSource.loop = true;
+
+      const filter = audioCtx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.frequency.value = 520;
+      filter.Q.value = 0.7;
+
+      const riverGain = audioCtx.createGain();
+      riverGain.gain.value = 0.28;
+
+      riverSource.connect(filter);
+      filter.connect(riverGain);
+      riverGain.connect(masterGain);
+      riverSource.start();
+
+      const pentatonicFreqs = [293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25, 783.99];
+      setInterval(() => {
+        if (audioMuted || !audioCtx || audioCtx.state !== 'running') return;
+        if (Math.random() > 0.65) return;
+
+        const osc = audioCtx.createOscillator();
+        const noteGain = audioCtx.createGain();
+        const freq = pentatonicFreqs[Math.floor(Math.random() * pentatonicFreqs.length)];
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+
+        noteGain.gain.setValueAtTime(0.001, audioCtx.currentTime);
+        noteGain.gain.exponentialRampToValueAtTime(0.055, audioCtx.currentTime + 0.08);
+        noteGain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 3.6);
+
+        osc.connect(noteGain);
+        noteGain.connect(masterGain);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 3.7);
+      }, 1800);
+    }
+
+    audioMuted = !audioMuted;
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    masterGain.gain.setTargetAtTime(audioMuted ? 0.0 : 0.65, audioCtx.currentTime, 0.35);
+
+    const btnAudio = document.getElementById('btn-audio');
+    document.getElementById('audio-icon').textContent = audioMuted ? '🔇' : '🔊';
+    btnAudio.classList.toggle('active', !audioMuted);
+  }
+
+  // ==========================================================================
+  // CAMERA NAVIGATION, UI CONTROLS & RESIZE HANDLING
+  // ==========================================================================
+  function resizeCanvases() {
+    state.width = window.innerWidth;
+    state.height = window.innerHeight;
+    const dpr = Math.min(window.devicePixelRatio || 1, 1.75);
+
+    glCanvas.width = Math.max(360, Math.floor(state.width * state.resScale * dpr));
+    glCanvas.height = Math.max(220, Math.floor(state.height * state.resScale * dpr));
+    gl.viewport(0, 0, glCanvas.width, glCanvas.height);
+
+    fxCanvas.width = Math.floor(state.width * dpr);
+    fxCanvas.height = Math.floor(state.height * dpr);
+    fxCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  window.addEventListener('resize', resizeCanvases);
+  resizeCanvases();
+
+  function selectCameraPreset(idx, instant = false) {
+    state.camMode = idx;
+    const preset = CAMERA_PRESETS[idx];
+    state.targetCamPos = [...preset.pos];
+    state.targetCamLook = [...preset.look];
+    if (instant) {
+      state.camPos = [...preset.pos];
+      state.camTarget = [...preset.look];
+    }
+
+    const dx = preset.look[0] - preset.pos[0];
+    const dy = preset.look[1] - preset.pos[1];
+    const dz = preset.look[2] - preset.pos[2];
+    state.orbitDist = Math.hypot(dx, dy, dz);
+    state.orbitYaw = Math.atan2(dx, dz);
+    state.orbitPitch = Math.asin(dy / state.orbitDist);
+
+    document.getElementById('stat-cam').textContent = preset.name;
+    document.querySelectorAll('.cam-btn').forEach((btn, bIdx) => {
+      btn.classList.toggle('active', bIdx === idx);
+    });
+  }
+
+  function selectMoodPreset(idx, instant = false) {
+    state.moodIndex = idx;
+    const mood = MOOD_PRESETS[idx];
+    state.sunElevation = mood.sunElevation;
+    state.sunAzimuth = mood.sunAzimuth;
+    if (instant) {
+      state.skyZenith = [...mood.skyZenith];
+      state.skyHorizon = [...mood.skyHorizon];
+      state.sunColor = [...mood.sunColor];
+      state.fogColor = [...mood.fogColor];
+      state.ambientTint = [...mood.ambientTint];
+      state.lanternGlow = mood.lanternGlow;
+      state.starIntensity = mood.starIntensity;
+    }
+    document.getElementById('sld-sun').value = mood.sunElevation;
+    document.getElementById('lbl-sun').textContent = mood.sunElevation.toFixed(2);
+    document.getElementById('stat-mood').textContent = mood.name;
+
+    document.querySelectorAll('.mood-btn').forEach((btn, bIdx) => {
+      btn.classList.toggle('active', bIdx === idx);
+    });
+  }
+
+  const viewportEl = document.getElementById('engine-viewport');
+
+  viewportEl.addEventListener('pointerdown', (e) => {
+    state.isDragging = true;
+    state.lastMouseX = e.clientX;
+    state.lastMouseY = e.clientY;
+    if (CAMERA_PRESETS[state.camMode].auto) {
+      CAMERA_PRESETS[state.camMode].auto = false;
+    }
+  });
+
+  window.addEventListener('pointermove', (e) => {
+    state.mouseNormX = e.clientX / Math.max(1, state.width);
+    state.mouseNormY = e.clientY / Math.max(1, state.height);
+
+    if (!state.isDragging) return;
+    const dx = e.clientX - state.lastMouseX;
+    const dy = e.clientY - state.lastMouseY;
+    state.lastMouseX = e.clientX;
+    state.lastMouseY = e.clientY;
+
+    state.orbitYaw += dx * 0.0045;
+    state.orbitPitch = Math.max(-0.55, Math.min(0.68, state.orbitPitch - dy * 0.0038));
+
+    const cosP = Math.cos(state.orbitPitch);
+    state.targetCamLook = [
+      state.targetCamPos[0] + Math.sin(state.orbitYaw) * cosP * state.orbitDist,
+      state.targetCamPos[1] + Math.sin(state.orbitPitch) * state.orbitDist,
+      state.targetCamPos[2] + Math.cos(state.orbitYaw) * cosP * state.orbitDist
+    ];
+  });
+
+  window.addEventListener('pointerup', () => {
+    state.isDragging = false;
+  });
+
+  viewportEl.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const zoomStep = e.deltaY * -0.025;
+    state.targetCamPos[0] += camBasis.fwd[0] * zoomStep;
+    state.targetCamPos[1] = Math.max(2.2, state.targetCamPos[1] + camBasis.fwd[1] * zoomStep);
+    state.targetCamPos[2] += camBasis.fwd[2] * zoomStep;
+    state.targetCamLook[0] += camBasis.fwd[0] * zoomStep;
+    state.targetCamLook[1] += camBasis.fwd[1] * zoomStep;
+    state.targetCamLook[2] += camBasis.fwd[2] * zoomStep;
+  }, { passive: false });
+
+  window.addEventListener('keydown', (e) => {
+    const k = e.key.toLowerCase();
+    state.keys[k] = true;
+    if (k === ' ') {
+      e.preventDefault();
+      state.gustImpulse = 1.6;
+    } else if (k === 'h') {
+      document.body.classList.toggle('cinema-mode');
+    } else if (k === 'm') {
+      toggleAudio();
+    }
+  });
+
+  window.addEventListener('keyup', (e) => {
+    state.keys[e.key.toLowerCase()] = false;
+  });
+
+  document.querySelectorAll('.cam-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = parseInt(btn.dataset.cam, 10);
+      if (idx === 4) CAMERA_PRESETS[4].auto = true;
+      selectCameraPreset(idx);
+    });
+  });
+
+  document.querySelectorAll('.mood-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      selectMoodPreset(parseInt(btn.dataset.mood, 10));
+    });
+  });
+
+  document.getElementById('btn-gust').addEventListener('click', () => {
+    state.gustImpulse = 1.75;
+  });
+
+  document.getElementById('btn-audio').addEventListener('click', toggleAudio);
+
+  document.getElementById('btn-studio').addEventListener('click', (e) => {
+    const panel = document.getElementById('studio-panel');
+    panel.classList.toggle('collapsed');
+    e.currentTarget.classList.toggle('active', !panel.classList.contains('collapsed'));
+  });
+
+  document.getElementById('btn-cinema').addEventListener('click', () => {
+    document.body.classList.toggle('cinema-mode');
+  });
+
+  function bindSlider(id, lblId, prop, fmt) {
+    const el = document.getElementById(id);
+    const lbl = document.getElementById(lblId);
+    el.addEventListener('input', () => {
+      const val = parseFloat(el.value);
+      state[prop] = val;
+      lbl.textContent = fmt(val);
+      if (prop === 'petalCount') {
+        document.getElementById('stat-petals').textContent = val.toLocaleString();
+      }
+      if (prop === 'resScale') {
+        state.userLockedRes = true;
+        resizeCanvases();
+      }
+    });
+  }
+
+  bindSlider('sld-petals', 'lbl-petals', 'petalCount', v => v.toFixed(0));
+  bindSlider('sld-wind', 'lbl-wind', 'windStrength', v => v.toFixed(2) + 'x');
+  bindSlider('sld-petal-size', 'lbl-petal-size', 'petalSizeScale', v => v.toFixed(2) + 'x');
+  bindSlider('sld-water', 'lbl-water', 'waterSpeed', v => v.toFixed(2) + 'x');
+  bindSlider('sld-greenery', 'lbl-greenery', 'greeneryLushness', v => v.toFixed(2) + 'x');
+  bindSlider('sld-mist', 'lbl-mist', 'mistDensity', v => v.toFixed(2) + 'x');
+  bindSlider('sld-sun', 'lbl-sun', 'sunElevation', v => v.toFixed(2));
+  bindSlider('sld-res', 'lbl-res', 'resScale', v => v.toFixed(2) + 'x');
+
+  selectCameraPreset(0, true);
+  selectMoodPreset(0, true);
+
+  // ==========================================================================
+  // MAIN REAL-TIME ENGINE LOOP
+  // ==========================================================================
+  let lastFrameTime = performance.now();
+  let fpsCounter = 0;
+  let fpsTimer = 0;
+  let pendingResize = false;
+
+  function drawScene(dt) {
+    if (pendingResize) {
+      pendingResize = false;
+      resizeCanvases();
+    }
+
+    updateCameraBasis();
+
+    const sunDir = normalize3([
+      Math.sin(state.sunAzimuth),
+      state.sunElevation,
+      Math.cos(state.sunAzimuth)
+    ]);
+
+    gl.useProgram(prog);
+    gl.uniform2f(uniforms.res, glCanvas.width, glCanvas.height);
+    gl.uniform1f(uniforms.time, state.time);
+    gl.uniform3fv(uniforms.camPos, state.camPos);
+    gl.uniform3fv(uniforms.camFwd, camBasis.fwd);
+    gl.uniform3fv(uniforms.camRight, camBasis.right);
+    gl.uniform3fv(uniforms.camUp, camBasis.up);
+    gl.uniform1f(uniforms.waterSpeed, state.waterSpeed);
+    gl.uniform1f(uniforms.greenery, state.greeneryLushness);
+    gl.uniform1f(uniforms.mist, state.mistDensity);
+    gl.uniform3fv(uniforms.sunDir, sunDir);
+    gl.uniform3fv(uniforms.skyZenith, state.skyZenith);
+    gl.uniform3fv(uniforms.skyHorizon, state.skyHorizon);
+    gl.uniform3fv(uniforms.sunColor, state.sunColor);
+    gl.uniform3fv(uniforms.fogColor, state.fogColor);
+    gl.uniform3fv(uniforms.ambientTint, state.ambientTint);
+    gl.uniform1f(uniforms.lanternGlow, state.lanternGlow);
+    gl.uniform1f(uniforms.starIntensity, state.starIntensity);
+
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+    fxCtx.clearRect(0, 0, state.width, state.height);
+    renderBridgeAndLanterns(fxCtx);
+    renderBotanicalTrees(fxCtx);
+    updateAndRenderParticles(fxCtx, dt);
+  }
+
+  function renderLoop(now) {
+    const rawDt = (now - lastFrameTime) * 0.001;
+    lastFrameTime = now;
+    const dt = Math.min(0.05, Math.max(0.001, rawDt));
+    state.dt = dt;
+    state.time += dt;
+
+    fpsCounter++;
+    fpsTimer += dt;
+    if (fpsTimer >= 0.5) {
+      const fps = Math.min(60, Math.round(fpsCounter / fpsTimer));
+      document.getElementById('stat-fps').textContent = fps;
+      fpsCounter = 0;
+      fpsTimer = 0;
+    }
+
+    state.gustImpulse = Math.max(0.0, state.gustImpulse - dt * 0.85);
+
+    const moveSpeed = (state.keys['shift'] ? 22.0 : 11.0) * dt;
+    let moved = false;
+    if (state.keys['w'] || state.keys['arrowup']) {
+      state.targetCamPos[0] += camBasis.fwd[0] * moveSpeed;
+      state.targetCamPos[1] += camBasis.fwd[1] * moveSpeed;
+      state.targetCamPos[2] += camBasis.fwd[2] * moveSpeed;
+      moved = true;
+    }
+    if (state.keys['s'] || state.keys['arrowdown']) {
+      state.targetCamPos[0] -= camBasis.fwd[0] * moveSpeed;
+      state.targetCamPos[1] -= camBasis.fwd[1] * moveSpeed;
+      state.targetCamPos[2] -= camBasis.fwd[2] * moveSpeed;
+      moved = true;
+    }
+    if (state.keys['a'] || state.keys['arrowleft']) {
+      state.targetCamPos[0] -= camBasis.right[0] * moveSpeed;
+      state.targetCamPos[2] -= camBasis.right[2] * moveSpeed;
+      moved = true;
+    }
+    if (state.keys['d'] || state.keys['arrowright']) {
+      state.targetCamPos[0] += camBasis.right[0] * moveSpeed;
+      state.targetCamPos[2] += camBasis.right[2] * moveSpeed;
+      moved = true;
+    }
+    if (state.keys['e']) {
+      state.targetCamPos[1] += moveSpeed * 0.8;
+      moved = true;
+    }
+    if (state.keys['q']) {
+      state.targetCamPos[1] = Math.max(2.0, state.targetCamPos[1] - moveSpeed * 0.8);
+      moved = true;
+    }
+    if (moved) {
+      const cosP = Math.cos(state.orbitPitch);
+      state.targetCamLook = [
+        state.targetCamPos[0] + Math.sin(state.orbitYaw) * cosP * state.orbitDist,
+        state.targetCamPos[1] + Math.sin(state.orbitPitch) * state.orbitDist,
+        state.targetCamPos[2] + Math.cos(state.orbitYaw) * cosP * state.orbitDist
+      ];
+    }
+
+    if (state.camMode === 4 && CAMERA_PRESETS[4].auto) {
+      const cruiseT = state.time * 0.22;
+      const cz = -15.0 + (Math.sin(cruiseT) * 0.5 + 0.5) * 32.0;
+      const rCenter = getRiverCenterX(cz);
+      const waterY = getWaterElevation(cz);
+      state.targetCamPos = [
+        rCenter + Math.cos(cruiseT * 1.6) * 4.5,
+        waterY + 4.8 + Math.sin(cruiseT * 0.9) * 2.2,
+        cz
+      ];
+      const lookZ = cz + 22.0;
+      state.targetCamLook = [
+        getRiverCenterX(lookZ) * 0.6,
+        getWaterElevation(lookZ) + 5.5,
+        lookZ
+      ];
+    } else if (!state.isDragging && !moved) {
+      const breathX = Math.sin(state.time * 0.45) * 0.22;
+      const breathY = Math.cos(state.time * 0.35) * 0.14;
+      state.camPos[0] += (state.targetCamPos[0] + breathX - state.camPos[0]) * 0.08;
+      state.camPos[1] += (state.targetCamPos[1] + breathY - state.camPos[1]) * 0.08;
+      state.camPos[2] += (state.targetCamPos[2] - state.camPos[2]) * 0.08;
+    }
+
+    if (state.isDragging || moved || (state.camMode === 4 && CAMERA_PRESETS[4].auto)) {
+      for (let i = 0; i < 3; i++) {
+        state.camPos[i] += (state.targetCamPos[i] - state.camPos[i]) * 0.12;
+      }
+    }
+    for (let i = 0; i < 3; i++) {
+      state.camTarget[i] += (state.targetCamLook[i] - state.camTarget[i]) * 0.12;
+    }
+
+    const targetMood = MOOD_PRESETS[state.moodIndex];
+    const lerpRate = Math.min(1.0, dt * 4.5);
+    for (let i = 0; i < 3; i++) {
+      state.skyZenith[i] = mix(state.skyZenith[i], targetMood.skyZenith[i], lerpRate);
+      state.skyHorizon[i] = mix(state.skyHorizon[i], targetMood.skyHorizon[i], lerpRate);
+      state.sunColor[i] = mix(state.sunColor[i], targetMood.sunColor[i], lerpRate);
+      state.fogColor[i] = mix(state.fogColor[i], targetMood.fogColor[i], lerpRate);
+      state.ambientTint[i] = mix(state.ambientTint[i], targetMood.ambientTint[i], lerpRate);
+    }
+    state.lanternGlow = mix(state.lanternGlow, targetMood.lanternGlow, lerpRate);
+    state.starIntensity = mix(state.starIntensity, targetMood.starIntensity, lerpRate);
+
+    drawScene(dt);
+
+    const frameElapsed = performance.now() - now;
+    if (frameElapsed > 45.0 && state.resScale > 0.55 && !state.userLockedRes) {
+      state.resScale = Math.max(0.55, state.resScale - 0.08);
+      document.getElementById('sld-res').value = state.resScale;
+      document.getElementById('lbl-res').textContent = state.resScale.toFixed(2) + 'x';
+      pendingResize = true;
+    }
+
+    if (frameElapsed > 25.0) {
+      setTimeout(() => requestAnimationFrame(renderLoop), 12);
+    } else {
+      requestAnimationFrame(renderLoop);
+    }
+  }
+
+  window.renderFrameAt = (camIdx, moodIdx, tSec) => {
+    state.userLockedRes = true;
+    state.resScale = 0.75;
+    resizeCanvases();
+    selectCameraPreset(camIdx, true);
+    selectMoodPreset(moodIdx, true);
+    state.time = tSec;
+    drawScene(0.016);
+  };
+
+  requestAnimationFrame(renderLoop);
+})();
+</script>
+</body>
+</html>
